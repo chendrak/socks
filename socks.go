@@ -45,6 +45,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 )
 
 // Constants to choose which version of SOCKS protocol to use.
@@ -57,24 +58,43 @@ const (
 // DialSocksProxy returns the dial function to be used in http.Transport object.
 // Argument socksType should be one of SOCKS4, SOCKS4A and SOCKS5.
 // Argument proxy should be in this format "127.0.0.1:1080".
+// This method does not specify a timeout
 func DialSocksProxy(socksType int, proxy string) func(string, string) (net.Conn, error) {
+	return DialSocksProxyTimeout(socksType, proxy, 0)
+}
+
+// DialSocksProxy returns the dial function to be used in http.Transport object.
+// Argument socksType should be one of SOCKS4, SOCKS4A and SOCKS5.
+// Argument proxy should be in this format "127.0.0.1:1080".
+// Argument timeout the time.Duration after which the request should time out
+func DialSocksProxyTimeout(socksType int, proxy string, timeout time.Duration) func(string, string) (net.Conn, error) {
 	if socksType == SOCKS5 {
 		return func(_, targetAddr string) (conn net.Conn, err error) {
-			return dialSocks5(proxy, targetAddr)
+			return dialSocks5(proxy, targetAddr, timeout)
 		}
 	}
 
 	// SOCKS4, SOCKS4A
 	return func(_, targetAddr string) (conn net.Conn, err error) {
-		return dialSocks4(socksType, proxy, targetAddr)
+		return dialSocks4(socksType, proxy, targetAddr, timeout)
 	}
 }
 
-func dialSocks5(proxy, targetAddr string) (conn net.Conn, err error) {
+func dialSocks5(proxy, targetAddr string, timeout time.Duration) (conn net.Conn, err error) {
 	// dial TCP
-	conn, err = net.Dial("tcp", proxy)
-	if err != nil {
-		return
+
+	if timeout > 0 {
+		deadline := time.Now().Add(timeout)
+		conn, err = net.DialTimeout("tcp", proxy, timeout)
+		if err != nil {
+			return
+		}
+		conn.SetDeadline(deadline)
+	} else {
+		conn, err = net.Dial("tcp", proxy)
+		if err != nil {
+			return
+		}
 	}
 
 	// version identifier/method selection request
@@ -121,9 +141,13 @@ func dialSocks5(proxy, targetAddr string) (conn net.Conn, err error) {
 	return
 }
 
-func dialSocks4(socksType int, proxy, targetAddr string) (conn net.Conn, err error) {
-	// dial TCP
-	conn, err = net.Dial("tcp", proxy)
+func dialSocks4(socksType int, proxy, targetAddr string, timeout time.Duration) (conn net.Conn, err error) {
+	if timeout > 0 {
+		conn, err = net.DialTimeout("tcp", proxy, timeout)
+	} else {
+		conn, err = net.Dial("tcp", proxy)
+	}
+
 	if err != nil {
 		return
 	}
