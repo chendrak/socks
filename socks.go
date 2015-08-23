@@ -41,7 +41,6 @@ A complete example using this package:
 package socks
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -107,11 +106,11 @@ func dialSocks5(proxy, targetAddr string, timeout time.Duration) (conn net.Conn,
 	if err != nil {
 		return
 	} else if len(resp) != 2 {
-		err = errors.New("Server does not respond properly.")
+		err = ErrNoProperRespone
 	} else if resp[0] != 5 {
-		err = errors.New("Server does not support Socks 5.")
+		err = ErrNoSocks5Support
 	} else if resp[1] != 0 { // no auth
-		err = errors.New("socks method negotiation failed.")
+		err = ErrMethodNegotiationFailed
 		return
 	}
 
@@ -133,9 +132,9 @@ func dialSocks5(proxy, targetAddr string, timeout time.Duration) (conn net.Conn,
 	if err != nil {
 		return
 	} else if len(resp) != 10 {
-		err = errors.New("Server does not respond properly.")
+		err = ErrNoProperRespone
 	} else if resp[1] != 0 {
-		err = errors.New("Can't complete SOCKS5 connection.")
+		err = ErrCantCompleteSocks5Connection
 	}
 
 	return
@@ -180,19 +179,19 @@ func dialSocks4(socksType int, proxy, targetAddr string, timeout time.Duration) 
 	if err != nil {
 		return
 	} else if len(resp) != 8 {
-		err = errors.New("Server does not respond properly.")
+		err = ErrNoProperRespone
 	}
 	switch resp[1] {
 	case 90:
 		// request granted
 	case 91:
-		err = errors.New("Socks connection request rejected or failed.")
+		err = ErrSocksRequestRejectedOrFailed
 	case 92:
-		err = errors.New("Socks connection request rejected becasue SOCKS server cannot connect to identd on the client.")
+		err = ErrCannotConnectToIdentd
 	case 93:
-		err = errors.New("Socks connection request rejected because the client program and identd report different user-ids.")
+		err = ErrClientServerDifferentUserIds
 	default:
-		err = errors.New("Socks connection request failed, unknown error.")
+		err = ErrUnknown
 	}
 	return
 }
@@ -219,13 +218,13 @@ func lookupIP(host string) (ip net.IP, err error) {
 		return
 	}
 	if len(ips) == 0 {
-		err = errors.New(fmt.Sprintf("Cannot resolve host: %s.", host))
+		err = NewSocksError(fmt.Sprintf("Cannot resolve host: %s.", host))
 		return
 	}
 	ip = ips[0].To4()
 	if len(ip) != net.IPv4len {
 		fmt.Println(len(ip), ip)
-		err = errors.New("IPv6 is not supported by SOCKS4.")
+		err = ErrIpv6NotSupported
 		return
 	}
 	return
